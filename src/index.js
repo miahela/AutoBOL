@@ -1,6 +1,6 @@
 const express = require('express');
 const dotenv = require('dotenv');
-const pool = require('../config/db');
+const pool = require('../config/db'); // Adjust the path if necessary
 
 dotenv.config();
 
