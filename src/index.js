@@ -17,7 +17,7 @@ app.get('/test-db', async (req, res) => {
         const result = await pool.query('SELECT * FROM SKUs LIMIT 1');
         res.json(result.rows);
     } catch (err) {
-        console.error(err.message);
+        console.error('Database query error:', err.message, err.stack);
         res.status(500).send('Server Error');
     }
 });
