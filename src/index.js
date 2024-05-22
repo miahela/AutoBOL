@@ -9,7 +9,7 @@ const PORT = process.env.PORT || 3000;
 
 app.get('/', (req, res) => {
     res.send('Hello, world!');
-    res.send('CI/CD pipeline is working!');
+    res.send('CI/CD pipeline is working nowww!');
 });
 
 // Route to test database connectivity
