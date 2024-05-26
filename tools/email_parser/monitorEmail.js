@@ -1,21 +1,18 @@
 require('dotenv').config();
 const axios = require('axios');
 const Imap = require('imap');
-const { simpleParser } = require('mailparser');
+const {
+    simpleParser
+} = require('mailparser');
 
-// Email account credentials
 const username = process.env.EMAIL_USERNAME;
 const tenantID = process.env.EMAIL_TENANT_ID;
 const clientID = process.env.EMAIL_CLIENT_ID;
 const clientSecret = process.env.EMAIL_CLIENT_SECRET;
+const emailPort = process.env.EMAIL_PORT;
+const emailHost = process.env.EMAIL_HOST;
+const emailTls = process.env.EMAIL_TLS;
 
-// Log environment variables to debug
-console.log('Email Username:', username);
-console.log('Tenant ID:', tenantID);
-console.log('Client ID:', clientID);
-console.log('Client Secret:', clientSecret);
-
-// OAuth2 configuration
 const tokenUrl = `https://login.microsoftonline.com/${tenantID}/oauth2/v2.0/token`;
 
 async function getAccessToken() {
@@ -39,23 +36,18 @@ async function getAccessToken() {
 }
 
 getAccessToken().then(accessToken => {
-    console.log('Access Token:', accessToken); // Log the access token
-
-    // Manually construct the XOAUTH2 token
     const xoauth2Token = Buffer.from(`user=${username}\x01auth=Bearer ${accessToken}\x01\x01`).toString('base64');
 
-    // Log the XOAUTH2 token
-    console.log('XOAUTH2 Token:', xoauth2Token);
-
-    // IMAP setup with xoauth2 token
     const imap = new Imap({
         user: username,
         xoauth2: xoauth2Token,
-        host: 'outlook.office365.com',
-        port: 993,
-        tls: true,
-        tlsOptions: { rejectUnauthorized: false },
-        authTimeout: 10000 // Increased timeout
+        host: emailHost,
+        port: emailPort,
+        tls: emailTls,
+        tlsOptions: {
+            rejectUnauthorized: false
+        },
+        authTimeout: 10000
     });
 
     imap.once('ready', function () {
@@ -73,11 +65,11 @@ getAccessToken().then(accessToken => {
         console.log('Connection ended');
     });
 
-    imap.once('authenticated', function() {
+    imap.once('authenticated', function () {
         console.log('IMAP authenticated');
     });
 
-    imap.once('close', function(hadError) {
+    imap.once('close', function (hadError) {
         console.log('IMAP connection closed, hadError=', hadError);
     });
 
