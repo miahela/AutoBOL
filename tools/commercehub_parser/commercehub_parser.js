@@ -4,6 +4,12 @@ const {
     until
 } = require('selenium-webdriver');
 const chrome = require('selenium-webdriver/chrome');
+const {
+    readFromJsonFile,
+    writeToJsonFile
+} = require('../../helpers/jsonManager');
+
+
 
 async function login(driver) {
     let email = 'support2@streamlinebath.com';
@@ -50,13 +56,29 @@ async function setPageSize(driver) {
 }
 
 async function getOrders(driver) {
-    let ordersCanada = await driver.findElements(By.css('table.searchResults'));
+    let ordersCanadaUsa = await driver.findElements(By.css('table.searchResults tr'));
     let ordersList = [];
-    for (let order of ordersCanada) {
-        ordersList.push(await order.getText());
+    for (let order = 1; order < ordersCanadaUsa.length; order++) {
+        const orders = ordersCanadaUsa[order];
+        const columns = await orders.findElements(By.css('td'));
+        const orderObject = {
+            'PO NUMBER': await columns[0].getText(),
+            'MERCHANT': await columns[1].getText(),
+            'STATUS': await columns[2].getText(),
+            'LINE COUNT': await columns[3].getText(),
+            'ORDER DATE': await columns[4].getText(),
+        };
+        ordersList.push(orderObject);
     }
-    console.log(ordersList);
+
+    console.log(JSON.stringify({
+        entries: ordersList
+    }, null, 2));
+    writeToJsonFile({
+        entries: ordersList
+    }, 'orders.json');
 }
+
 
 async function switchProfile(driver) {
     await driver.wait(until.elementLocated(By.xpath('//a[@class=\'switch-profile\']')), 2000).click();
@@ -76,15 +98,6 @@ async function selectLowes(driver) {
     await driver.wait(until.elementLocated(By.xpath('//*[@id="pageParent"]/tbody/tr[6]/td/table/tbody/tr[3]/td/table/tbody/tr[2]/td/table/tbody/tr[2]')), 4000).click();
 }
 
-async function getOrdersUSALowes(driver) {
-    let ordersUSALowes = await driver.findElements(By.css('table.searchResults'));
-    let ordersListUSALowes = [];
-    for (let order of ordersUSALowes) {
-        ordersListUSALowes.push(await order.getText());
-    }
-    console.log(ordersListUSALowes);
-}
-
 async function getBack(driver) {
     await driver.wait(until.elementLocated(By.xpath('//*[@id="pageParent"]/tbody/tr[4]/td/table/tbody/tr/td[1]/a[2]')), 2000).click();
 }
@@ -93,26 +106,8 @@ async function selectRona(driver) {
     await driver.wait(until.elementLocated(By.xpath('//*[@id="pageParent"]/tbody/tr[6]/td/table/tbody/tr[3]/td/table/tbody/tr[2]/td/table/tbody/tr[3]')), 2000).click();
 }
 
-async function getOrdersUSARona(driver) {
-    let ordersUSARona = await driver.findElements(By.css('table.searchResults'));
-    let ordersListUSARona = [];
-    for (let order of ordersUSARona) {
-        ordersListUSARona.push(await order.getText());
-    }
-    console.log(ordersListUSARona);
-}
-
 async function selectHomeDepotINC(driver) {
     await driver.wait(until.elementLocated(By.xpath('//*[@id="pageParent"]/tbody/tr[6]/td/table/tbody/tr[3]/td/table/tbody/tr[2]/td/table/tbody/tr[4]')), 2000).click();
-}
-
-async function getOrdersUSAHDINC(driver) {
-    let ordersUSAHDINC = await driver.findElements(By.css('table.searchResults')); 
-    let ordersListHDINC = [];
-    for (let order of ordersUSAHDINC) {
-        ordersListHDINC.push(await order.getText());
-    }
-    console.log(ordersListHDINC);
 }
 
 (async function eCommerceHub() {
@@ -132,15 +127,15 @@ async function getOrdersUSAHDINC(driver) {
         await openOrderLinksUsa(driver);
         await selectLowes(driver);
         await setPageSize(driver);
-        await getOrdersUSALowes(driver);
+        await getOrders(driver);
         await getBack(driver);
         await selectRona(driver);
         await setPageSize(driver);
-        await getOrdersUSARona(driver);
+        await getOrders(driver);
         await getBack(driver);
         await selectHomeDepotINC(driver);
         await setPageSize(driver);
-        await getOrdersUSAHDINC(driver);
+        await getOrders(driver);
     } finally {
         await driver.quit();
     }
