@@ -1,6 +1,5 @@
 const fs = require('fs');
 
-// Function to write data to a JSON file
 function writeToJsonFile(data, filePath) {
     const jsonData = JSON.stringify(data, null, 2);
 
@@ -13,16 +12,14 @@ function writeToJsonFile(data, filePath) {
     });
 }
 
-// Function to read data from a JSON file
 function readFromJsonFile(filePath) {
-    fs.readFile(filePath, 'utf8', (err, data) => {
-        if (err) {
-            console.error('Error reading JSON file:', err);
-        } else {
-            const jsonData = JSON.parse(data);
-            console.log('Data read from JSON file:', jsonData);
-        }
-    });
+    try {
+        const data = fs.readFileSync(filePath, 'utf8'); // Correctly read the file as a string
+        return data; // Return the raw string data for outside parsing
+    } catch (err) {
+        console.error("Error reading file from disk:", err);
+        throw err; // Re-throw to handle it in the calling code
+    }
 }
 
 module.exports = {

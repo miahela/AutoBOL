@@ -63,3 +63,5 @@ node_modules/
 
 # Windows specific files
 Thumbs.db
+
+data/
