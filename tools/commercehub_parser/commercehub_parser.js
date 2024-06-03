@@ -76,7 +76,7 @@ async function getOrders(driver) {
     }, null, 2));
     writeToJsonFile({
         entries: ordersList
-    }, 'orders.json');
+    }, '/commercehub_parser/orders.json');
 }
 
 
