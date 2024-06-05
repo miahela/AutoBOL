@@ -4,7 +4,6 @@ const mondaySdk = require("monday-sdk-js");
 const monday = mondaySdk();
 const {
     readFromJsonFile,
-    writeToJsonFile
 } = require('../../utils/jsonManager');
 const {
     formatDate
@@ -22,11 +21,10 @@ const jsonFilePath = './data/orders.json';
 try {
     const data = readFromJsonFile(jsonFilePath);
     const orders = JSON.parse(data);
-    processOrders(orders.entries);
+    processOrders(orders.ordersList);
 } catch (err) {
     console.error("Error handling JSON data:", err);
 }
-
 
 function processOrders(entries) {
     entries.forEach(entry => {
@@ -36,18 +34,19 @@ function processOrders(entries) {
 
 function createOrUpdateItem(entry) {
     const query = `mutation($boardId: ID!, $groupId: String!, $itemName: String!, $columnValues: JSON!) {
-      create_item(board_id: $boardId, group_id: $groupId, item_name: $itemName, column_values: $columnValues) {
-        id
-        name
-        column_values {
-          id
-          text
-          value
+        create_item(board_id: $boardId, group_id: $groupId, item_name: $itemName, column_values: $columnValues) {
+            id
+            name
+            column_values {
+                id
+                text
+                value
+            }
         }
-      }
     }`;
 
-    const formattedDate = formatDate(entry["ORDER DATE"]);
+    const formattedOrderDate = formatDate(entry["ORDER DATE"]);
+    const formattedMustShipDate = formatDate(entry["MUST SHIP DATE"]);
 
     const variables = {
         boardId: String(entry["COUNTRY"] === "USA" ? USA_BOARD_ID : CANADA_BOARD_ID),
@@ -56,14 +55,21 @@ function createOrUpdateItem(entry) {
         columnValues: JSON.stringify({
             "text": entry["PO NUMBER"],
             "customer": {
-                "labels": [mapCostumerLabel(entry["MERCHANT"])]
+                "labels": [mapCustomerLabel(entry["MERCHANT"])]
             },
             "status": {
                 "label": mapStatusLabel(entry["STATUS"])
             },
             "date4": {
-                "date": formattedDate
-            }
+                "date": formattedOrderDate
+            },
+            "date9": {
+                "date": formattedMustShipDate
+            },
+            "qty": entry["QTY"],
+            "vendor_sku": entry["VENDOR SKU"],
+            "province": entry["PROVINCE"],
+            "customer_name": entry["CUSTOMER NAME"]
         })
     };
 
@@ -80,8 +86,6 @@ function createOrUpdateItem(entry) {
     });
 }
 
-
-
 function mapStatusLabel(originalStatus) {
     const statusMap = {
         "Open": "Pending Verification",
@@ -90,10 +94,12 @@ function mapStatusLabel(originalStatus) {
     return statusMap[originalStatus] || originalStatus;
 }
 
-function mapCostumerLabel(originalCostumer) {
-    const costumerMap = {
+function mapCustomerLabel(originalCustomer) {
+    const customerMap = {
         "The Home Depot Canada": "HomeDepotCanada-Canada-CAD",
-        "Costco": "Costco-Canada"
+        "Costco": "Costco-Canada",
+        "Lowe's": "Lowes-Canada",
+        "RONA": "Rona",
     }
-    return costumerMap[originalCostumer] || originalCostumer;
+    return customerMap[originalCustomer] || originalCustomer;
 }

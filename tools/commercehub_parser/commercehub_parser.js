@@ -1,142 +1,162 @@
+// TODO: Add logic for when there are more than 100 orders
+
 const {
-    Builder,
     By,
     until
 } = require('selenium-webdriver');
 const chrome = require('selenium-webdriver/chrome');
 const {
-    readFromJsonFile,
     writeToJsonFile
-} = require('../../helpers/jsonManager');
+} = require('../../utils/jsonManager');
+const dotenv = require('dotenv');
+const SeleniumManager = require('../../utils/seleniumManager');
+const {
+    log
+} = require('winston');
 
+dotenv.config();
 
+const EMAIL = process.env.eCommerceHubEmail;
+const PASSWORD = process.env.eCommerceHubPassword;
 
-async function login(driver) {
-    let email = 'support2@streamlinebath.com';
-    let password = 'Pacific2024!';
-    await driver.get('https://account.commercehub.com/u/login');
-    await driver.findElement(By.name('username')).sendKeys(email);
-    await driver.findElement(By.name('action')).click();
-    await driver.wait(until.elementLocated(By.name('password')), 2000);
-    await driver.findElement(By.name('password')).sendKeys(password);
-    await driver.findElement(By.name('action')).click();
+let ordersList = [];
+let totalOrders = 0;
+
+async function login(manager) {
+    await manager.open('https://account.commercehub.com/u/login');
+    await manager.sendKeys(By.name('username'), EMAIL);
+    await manager.click(By.name('action'));
+    await manager.findElement(By.name('password'));
+    await manager.sendKeys(By.name('password'), PASSWORD);
+    await manager.click(By.name('action'));
 }
 
-async function navigateToOrderStream(driver) {
-    await driver.wait(until.elementLocated(By.css('span > i')), 10000).click();
-    await driver.wait(until.elementLocated(By.linkText('OrderStream')), 2000).click();
+async function navigateToOrderStream(manager) {
+    await manager.click(By.css('span > i'));
+    await manager.click(By.linkText('OrderStream'));
 }
 
-async function selectRonalynCanada(driver) {
-    await driver.wait(until.elementLocated(By.linkText('Pacific Coast Import Inc - (Ronalyn Canada)')), 4000).click();
-    await driver.sleep(2000);
-    await driver.findElement(By.xpath('//div[@id=\'border-124a2021-6e13-090e-eca6-7c04cf9290a2\']')).click();
-    await driver.sleep(2000);
+async function navigateToOpenOrders(manager) {
+    await manager.open('https://dsm.commercehub.com/dsm/gotoOrderSearch.do')
+    await manager.click(By.xpath("//*[text()='Open Orders']"));
 }
 
-async function searchOrders(driver) {
-    await driver.sleep(2000);
-    await driver.findElement(By.xpath('//*[@id="dsmMenu_mainMenu"]/li[1]/span')).click();
-    await driver.sleep(2000);
-    await driver.findElement(By.xpath('//*[@id="dsmMenu_mainMenu"]/li[1]/ol/li[3]/a')).click();
-    await driver.sleep(2000);
+async function setPageSize(manager) {
+    await manager.click(By.name('pageSize'));
+    try {
+        await manager.click(By.xpath('//option[@value=\'100\']'));
+    } catch (error) {
+        log.error('Error setting page size to 100', error.message);
+    }
 }
 
-async function openOrderLinks(driver) {
-    await driver.wait(until.elementLocated(By.xpath('//*[@id="pageParent"]/tbody/tr[6]/td/table/tbody/tr[2]/td/table[2]/tbody/tr[2]/td/table/tbody/tr[4]/td[1]/a')), 2000).click();
+async function parseProvince(manager) {
+    const addressText = await manager.getText(By.xpath("(//div[@class='fw_widget_windowtag_body'])[4]"));
+
+    if (addressText) {
+        const stateCodeMatch = addressText.match(/[A-Z]{2}/);
+        if (stateCodeMatch) {
+            const stateCode = stateCodeMatch[0];
+            return stateCode;
+        } else {
+            console.log('State Code not found');
+        }
+    }
 }
 
-async function selectHomeDepotCanada(driver) {
-    await driver.wait(until.elementLocated(By.css('#pageParent td.characterdata')), 2000).click();
+async function getCustomerName(manager) {
+    const content = await manager.getText(By.xpath("(//div[@class='fw_widget_windowtag_body'])[3]"));
+    const lines = content.split('<br>');
+    const customerName = lines[0].trim();
+    return customerName;
 }
 
-async function setPageSize(driver) {
-    await driver.wait(until.elementLocated(By.name('pageSize')), 2000).click();
-    await driver.wait(until.elementLocated(By.xpath('//option[@value=\'100\']')), 2000).click();
-}
-
-async function getOrders(driver) {
-    let ordersCanadaUsa = await driver.findElements(By.css('table.searchResults tr'));
-    let ordersList = [];
-    for (let order = 1; order < ordersCanadaUsa.length; order++) {
-        const orders = ordersCanadaUsa[order];
-        const columns = await orders.findElements(By.css('td'));
+async function getOrdersData(manager, country) {
+    let merchantRows = await getTableElements(manager);
+    for (let i = 0; i < merchantRows.length; i++) {
+        merchantRows = await getTableElements(manager);
+        let merchantRow = merchantRows[i];
+        await merchantRow.click();
+        let item = await manager.getText(By.xpath("//tr[contains(@id, '.poNumber')]/td[contains(@id, '.poNumber')][2]"));
+        let customer = await manager.getText(By.xpath("//tr[contains(@id, '.merchantName')]/td[contains(@id, '.merchantName')][2]"));
+        let poDate = await manager.getText(By.xpath("//tr[contains(@id, '.orderDate')]/td[contains(@id, '.orderDate')][2]"));
+        let mustShipDate = await manager.getText(By.xpath("//tr/td[contains(@id, '.expectedShipDate')]"));
+        let vendorSku = await manager.getText(By.xpath("//tr/td[contains(@id, '.vendorSku')]"));
+        let province = parseProvince(manager);
+        let customerName = getCustomerName(manager);
+        let qty = await manager.getText(By.xpath("//tr/td[contains(@id, '.qty')]"));
         const orderObject = {
-            'PO NUMBER': await columns[0].getText(),
-            'MERCHANT': await columns[1].getText(),
-            'STATUS': await columns[2].getText(),
-            'LINE COUNT': await columns[3].getText(),
-            'ORDER DATE': await columns[4].getText(),
+            'PO NUMBER': item,
+            'MERCHANT': customer,
+            'STATUS': 'Open',
+            'QTY': qty,
+            'ORDER DATE': poDate,
+            'MUST SHIP DATE': mustShipDate,
+            'VENDOR SKU': vendorSku,
+            'PROVINCE': province,
+            'CUSTOMER NAME': customerName,
+            'COUNTRY': country
         };
         ordersList.push(orderObject);
+        manager.goBack();
+        totalOrders++;
+        if (merchantRows.length - 1 === i) {
+            console.log('Last order');
+            break;
+        }
     }
-
-    console.log(JSON.stringify({
-        entries: ordersList
-    }, null, 2));
-    writeToJsonFile({
-        entries: ordersList
-    }, '/commercehub_parser/orders.json');
 }
 
 
-async function switchProfile(driver) {
-    await driver.wait(until.elementLocated(By.xpath('//a[@class=\'switch-profile\']')), 2000).click();
+async function switchProfile(manager) {
+    await manager.open("https://auth.commercehub.com/user/switch-account?applicationId=prod_orderstream&applicationUrl=https:%2F%2Fdsm.commercehub.com%2Fdsm%2FhandleLogin.do&applicationLabel=OrderStream");
+    await manager.click(By.linkText('Pacific Coast Import Inc - (Ronalyn USA)'));
+    await navigateToOpenOrders(manager);
 }
 
-async function selectRonalynUSA(driver) {
-    await driver.sleep(5000);
-    await driver.wait(until.elementLocated(By.linkText('Pacific Coast Import Inc - (Ronalyn USA)')), 10000).click();
-    await driver.sleep(5000);
+async function getTableElements(manager) {
+    return await manager.findElements(By.xpath("//table[@class='searchresults']//tr[position() > 1]"));
 }
 
-async function openOrderLinksUsa(driver) {
-    await driver.wait(until.elementLocated(By.xpath('//*[@id="pageParent"]/tbody/tr[6]/td/table/tbody/tr[2]/td/table[2]/tbody/tr[2]/td/table/tbody/tr[6]/td[1]/a')), 2000).click();
+async function operateMerchants(manager, state) {
+    let merchantRows = await getTableElements(manager);
+    for (let i = 0; i < merchantRows.length; i++) {
+        merchantRows = await getTableElements(manager);
+        let merchantRow = merchantRows[i];
+        await merchantRow.click();
+        if (i === 0) {
+            await setPageSize(manager);
+        }
+        await getOrdersData(manager, state);
+        await manager.click(By.xpath("//a[contains(@href, 'gotoNextGroupingLevel.do?level=0')]"));
+    }
 }
 
-async function selectLowes(driver) {
-    await driver.wait(until.elementLocated(By.xpath('//*[@id="pageParent"]/tbody/tr[6]/td/table/tbody/tr[3]/td/table/tbody/tr[2]/td/table/tbody/tr[2]')), 4000).click();
-}
-
-async function getBack(driver) {
-    await driver.wait(until.elementLocated(By.xpath('//*[@id="pageParent"]/tbody/tr[4]/td/table/tbody/tr/td[1]/a[2]')), 2000).click();
-}
-
-async function selectRona(driver) {
-    await driver.wait(until.elementLocated(By.xpath('//*[@id="pageParent"]/tbody/tr[6]/td/table/tbody/tr[3]/td/table/tbody/tr[2]/td/table/tbody/tr[3]')), 2000).click();
-}
-
-async function selectHomeDepotINC(driver) {
-    await driver.wait(until.elementLocated(By.xpath('//*[@id="pageParent"]/tbody/tr[6]/td/table/tbody/tr[3]/td/table/tbody/tr[2]/td/table/tbody/tr[4]')), 2000).click();
-}
 
 (async function eCommerceHub() {
-    let driver = await new Builder().forBrowser('chrome').setChromeOptions(new chrome.Options().addArguments('--no-sandbox')).build();
+    const manager = new SeleniumManager();
+
     try {
-        await login(driver);
-        await navigateToOrderStream(driver);
-        await selectRonalynCanada(driver);
-        await searchOrders(driver);
-        await openOrderLinks(driver);
-        await selectHomeDepotCanada(driver);
-        await setPageSize(driver);
-        await getOrders(driver);
-        await switchProfile(driver);
-        await selectRonalynUSA(driver);
-        await searchOrders(driver);
-        await openOrderLinksUsa(driver);
-        await selectLowes(driver);
-        await setPageSize(driver);
-        await getOrders(driver);
-        await getBack(driver);
-        await selectRona(driver);
-        await setPageSize(driver);
-        await getOrders(driver);
-        await getBack(driver);
-        await selectHomeDepotINC(driver);
-        await setPageSize(driver);
-        await getOrders(driver);
+        await login(manager);
+
+        await navigateToOrderStream(manager);
+
+        await manager.click(By.linkText('Pacific Coast Import Inc - (Ronalyn Canada)'));
+        await manager.click(By.xpath("//div[@id=\'border-124a2021-6e13-090e-eca6-7c04cf9290a2\']"));
+
+        await navigateToOpenOrders(manager);
+
+        await operateMerchants(manager, "Canada");
+
+        await switchProfile(manager);
+
+        await operateMerchants(manager, "USA");
+
     } finally {
-        await driver.quit();
+        console.log('Total Orders:', totalOrders);
+        writeToJsonFile({
+            ordersList
+        }, './data/orders.json');
+        await manager.close();
     }
 })();

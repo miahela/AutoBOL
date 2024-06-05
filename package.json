@@ -21,6 +21,7 @@
     "simple-oauth2": "^5.0.0",
     "simple-parser": "^0.0.0",
     "sqlite3": "^5.1.7",
+    "winston": "^3.13.0",
     "xoauth2": "^1.2.0"
   }
 }
