@@ -23,7 +23,7 @@ let ordersList = [];
 let totalOrders = 0;
 
 async function login(manager) {
-    await manager.open('https://account.commercehub.com/u/login');
+    await manager.open('https://account.commercehub.com/u/login/identifier?state=hKFo2SBKSjkwZldtMVMtQUtzN1BpemtvSXp2LWllbFlnUmlJd6Fur3VuaXZlcnNhbC1sb2dpbqN0aWTZIDBFR2JacVJ2b3V0SjhCVTdPNmthbUMyOHVKNVdsajM2o2NpZNkgTjZ3QnJKMXV3WEtSMU1tMFJ0RlgxSlhONklQNm5oYmw');
     await manager.sendKeys(By.name('username'), EMAIL);
     await manager.click(By.name('action'));
     await manager.findElement(By.name('password'));
@@ -52,11 +52,13 @@ async function setPageSize(manager) {
 
 async function parseProvince(manager) {
     const addressText = await manager.getText(By.xpath("(//div[@class='fw_widget_windowtag_body'])[4]"));
-
+    console.log('Address Text:', addressText);
     if (addressText) {
         const stateCodeMatch = addressText.match(/[A-Z]{2}/);
+        console.log('State Code Match:', stateCodeMatch);
         if (stateCodeMatch) {
             const stateCode = stateCodeMatch[0];
+            console.log('State Code:', stateCode);
             return stateCode;
         } else {
             console.log('State Code not found');
@@ -66,12 +68,16 @@ async function parseProvince(manager) {
 
 async function getCustomerName(manager) {
     const content = await manager.getText(By.xpath("(//div[@class='fw_widget_windowtag_body'])[3]"));
-    const lines = content.split('<br>');
+    console.log('Content:', content);
+    const lines = content.split('\n');
+    console.log('Lines:', lines);
     const customerName = lines[0].trim();
-    return customerName;
+    console.log('Customer Name:', customerName);
+    return customerName || '';
 }
 
-async function getOrdersData(manager, country) {
+
+async function getOrdersData(manager, profile) {
     let merchantRows = await getTableElements(manager);
     for (let i = 0; i < merchantRows.length; i++) {
         merchantRows = await getTableElements(manager);
@@ -82,8 +88,8 @@ async function getOrdersData(manager, country) {
         let poDate = await manager.getText(By.xpath("//tr[contains(@id, '.orderDate')]/td[contains(@id, '.orderDate')][2]"));
         let mustShipDate = await manager.getText(By.xpath("//tr/td[contains(@id, '.expectedShipDate')]"));
         let vendorSku = await manager.getText(By.xpath("//tr/td[contains(@id, '.vendorSku')]"));
-        let province = parseProvince(manager);
-        let customerName = getCustomerName(manager);
+        let province = await parseProvince(manager);
+        let customerName = await getCustomerName(manager);
         let qty = await manager.getText(By.xpath("//tr/td[contains(@id, '.qty')]"));
         const orderObject = {
             'PO NUMBER': item,
@@ -95,7 +101,7 @@ async function getOrdersData(manager, country) {
             'VENDOR SKU': vendorSku,
             'PROVINCE': province,
             'CUSTOMER NAME': customerName,
-            'COUNTRY': country
+            'PROFILE': profile
         };
         ordersList.push(orderObject);
         manager.goBack();
@@ -146,11 +152,11 @@ async function operateMerchants(manager, state) {
 
         await navigateToOpenOrders(manager);
 
-        await operateMerchants(manager, "Canada");
+        await operateMerchants(manager, "1");
 
         await switchProfile(manager);
 
-        await operateMerchants(manager, "USA");
+        await operateMerchants(manager, "2");
 
     } finally {
         console.log('Total Orders:', totalOrders);

@@ -45,32 +45,61 @@ function createOrUpdateItem(entry) {
         }
     }`;
 
-    const formattedOrderDate = formatDate(entry["ORDER DATE"]);
-    const formattedMustShipDate = formatDate(entry["MUST SHIP DATE"]);
+    const formattedOrderDate = entry["ORDER DATE"] ? formatDate(entry["ORDER DATE"]) : null;
+    const formattedMustShipDate = entry["MUST SHIP DATE"] ? formatDate(entry["MUST SHIP DATE"]) : null;
+    const customerLabel = mapCustomerLabel(entry["MERCHANT"]);
+    const mappedBoardId = mapBoardId(entry["PROFILE"], customerLabel);
+
+    let columnValues = {
+        "item": entry["PO NUMBER"],
+        "customer": {
+            "labels": [customerLabel]
+        },
+        "qty": entry["QTY"]
+    };
+
+    if (mappedBoardId === USA_BOARD_ID) {
+        columnValues = {
+            ...columnValues,
+            "date4": formattedOrderDate ? {
+                "date": formattedOrderDate
+            } : undefined,
+            "date7": formattedMustShipDate ? {
+                "date": formattedMustShipDate
+            } : undefined,
+            "invoice_": entry["VENDOR SKU"] || "",
+            "text83": entry["CUSTOMER NAME"] && Object.keys(entry["CUSTOMER NAME"]).length ? entry["CUSTOMER NAME"] : undefined,
+            "text7": entry["PROVINCE"] && Object.keys(entry["PROVINCE"]).length ? entry["PROVINCE"] : undefined,
+            "numbers7": entry["QTY"]
+        };
+    } else if (mappedBoardId === CANADA_BOARD_ID) {
+        columnValues = {
+            ...columnValues,
+            "date4": formattedOrderDate ? {
+                "date": formattedOrderDate
+            } : undefined,
+            "date__1": formattedMustShipDate ? {
+                "date": formattedMustShipDate
+            } : undefined,
+            "invoice_": entry["VENDOR SKU"] || "",
+            "text2": entry["CUSTOMER NAME"] && Object.keys(entry["CUSTOMER NAME"]).length ? entry["CUSTOMER NAME"] : undefined,
+            "text6": entry["PROVINCE"] && Object.keys(entry["PROVINCE"]).length ? entry["PROVINCE"] : undefined,
+            "numbers": entry["QTY"]
+        };
+    }
+
+    // Remove undefined or empty string values
+    Object.keys(columnValues).forEach(key => {
+        if (columnValues[key] === undefined || columnValues[key] === "") {
+            delete columnValues[key];
+        }
+    });
 
     const variables = {
-        boardId: String(entry["COUNTRY"] === "USA" ? USA_BOARD_ID : CANADA_BOARD_ID),
-        groupId: String(entry["COUNTRY"] === "USA" ? USA_GROUP_ID : CANADA_GROUP_ID),
+        boardId: String(mappedBoardId),
+        groupId: String(mappedBoardId === USA_BOARD_ID ? USA_GROUP_ID : CANADA_GROUP_ID),
         itemName: `PO Number: ${entry["PO NUMBER"]}`,
-        columnValues: JSON.stringify({
-            "text": entry["PO NUMBER"],
-            "customer": {
-                "labels": [mapCustomerLabel(entry["MERCHANT"])]
-            },
-            "status": {
-                "label": mapStatusLabel(entry["STATUS"])
-            },
-            "date4": {
-                "date": formattedOrderDate
-            },
-            "date9": {
-                "date": formattedMustShipDate
-            },
-            "qty": entry["QTY"],
-            "vendor_sku": entry["VENDOR SKU"],
-            "province": entry["PROVINCE"],
-            "customer_name": entry["CUSTOMER NAME"]
-        })
+        columnValues: JSON.stringify(columnValues)
     };
 
     monday.api(query, {
@@ -78,28 +107,43 @@ function createOrUpdateItem(entry) {
     }).then(res => {
         if (res.data && res.data.create_item) {
             console.log('Item Created or Updated:', res.data.create_item);
+            console.log("Item created or updated successfully");
         } else {
             console.log('No data returned or unexpected response structure:', res);
+            console.log('Variables:', variables);
         }
     }).catch(err => {
         console.error('Error creating or updating item:', err);
     });
 }
 
-function mapStatusLabel(originalStatus) {
-    const statusMap = {
-        "Open": "Pending Verification",
-        // TODO: Add more status mappings as needed
-    };
-    return statusMap[originalStatus] || originalStatus;
+function mapBoardId(profile, merchant) {
+    let boardId;
+    if (merchant === "Lowes-USA") {
+        boardId = USA_BOARD_ID;
+        return boardId;
+    }
+    if (profile === "2") {
+        if (merchant === "Rona" || merchant === "Reno-Depot" || merchant === "Lowes-Canada") {
+            boardId = CANADA_BOARD_ID;
+        } else {
+            boardId = USA_BOARD_ID;
+        }
+    } else {
+        boardId = CANADA_BOARD_ID;
+    }
+    return boardId;
 }
 
 function mapCustomerLabel(originalCustomer) {
     const customerMap = {
         "The Home Depot Canada": "HomeDepotCanada-Canada-CAD",
-        "Costco": "Costco-Canada",
-        "Lowe's": "Lowes-Canada",
         "RONA": "Rona",
-    }
+        "Lowes-Canada": "Lowes-Canada",
+        "Reno-Depot": "RenoDepot",
+        "Lowe's": "Lowes-USA",
+        "Home Depot Canada": "HomeDepotCanada-USA",
+        "Home Depot USA": "HomeDepot-USA"
+    };
     return customerMap[originalCustomer] || originalCustomer;
 }
