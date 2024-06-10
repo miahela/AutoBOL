@@ -17,6 +17,7 @@
     "imap-simple": "^5.1.0",
     "mailparser": "^3.7.1",
     "monday-sdk-js": "^0.5.5",
+    "pg": "^8.12.0",
     "selenium-webdriver": "^4.21.0",
     "simple-oauth2": "^5.0.0",
     "simple-parser": "^0.0.0",

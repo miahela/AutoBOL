@@ -1,4 +1,4 @@
-// TODO: Add Proxy Rotation
+// TODO: Add Proxy
 
 const {
     Builder,

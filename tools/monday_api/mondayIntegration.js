@@ -21,7 +21,7 @@ const jsonFilePath = './data/orders.json';
 try {
     const data = readFromJsonFile(jsonFilePath);
     const orders = JSON.parse(data);
-    processOrders(orders.ordersList);
+    processOrders(orders);
 } catch (err) {
     console.error("Error handling JSON data:", err);
 }
@@ -98,7 +98,7 @@ function createOrUpdateItem(entry) {
     const variables = {
         boardId: String(mappedBoardId),
         groupId: String(mappedBoardId === USA_BOARD_ID ? USA_GROUP_ID : CANADA_GROUP_ID),
-        itemName: `PO Number: ${entry["PO NUMBER"]}`,
+        itemName: entry["PO NUMBER"],
         columnValues: JSON.stringify(columnValues)
     };
 
