@@ -1,10 +1,9 @@
 require('dotenv').config();
-const fs = require('fs');
 const mondaySdk = require("monday-sdk-js");
 const monday = mondaySdk();
 const {
-    readFromJsonFile,
-} = require('../../utils/jsonManager');
+    fetchAllOrders
+} = require('../../utils/dbOperations');
 const {
     formatDate
 } = require('../../utils/dateManager');
@@ -17,13 +16,13 @@ const CANADA_GROUP_ID = process.env.CA_GROUP_ID;
 
 monday.setToken(MONDAY_API_KEY);
 
-const jsonFilePath = './data/orders.json';
-try {
-    const data = readFromJsonFile(jsonFilePath);
-    const orders = JSON.parse(data);
-    processOrders(orders);
-} catch (err) {
-    console.error("Error handling JSON data:", err);
+async function main() {
+    try {
+        const orders = await fetchAllOrders();
+        processOrders(orders);
+    } catch (err) {
+        console.error("Error handling database data:", err);
+    }
 }
 
 function processOrders(entries) {
@@ -45,17 +44,17 @@ function createOrUpdateItem(entry) {
         }
     }`;
 
-    const formattedOrderDate = entry["ORDER DATE"] ? formatDate(entry["ORDER DATE"]) : null;
-    const formattedMustShipDate = entry["MUST SHIP DATE"] ? formatDate(entry["MUST SHIP DATE"]) : null;
-    const customerLabel = mapCustomerLabel(entry["MERCHANT"]);
-    const mappedBoardId = mapBoardId(entry["PROFILE"], customerLabel);
+    const formattedOrderDate = entry["order_date"] ? formatDate(entry["order_date"].toISOString().split('T')[0]) : null;
+    const formattedMustShipDate = entry["must_ship_date"] ? formatDate(entry["must_ship_date"].toISOString().split('T')[0]) : null;
+    const customerLabel = mapCustomerLabel(entry["merchant"], entry["profile"]);
+    const mappedBoardId = mapBoardId(entry["profile"], customerLabel);
 
     let columnValues = {
-        "item": entry["PO NUMBER"],
+        "item": entry["po_number"],
         "customer": {
             "labels": [customerLabel]
         },
-        "qty": entry["QTY"]
+        "qty": entry["qty"]
     };
 
     if (mappedBoardId === USA_BOARD_ID) {
@@ -67,10 +66,10 @@ function createOrUpdateItem(entry) {
             "date7": formattedMustShipDate ? {
                 "date": formattedMustShipDate
             } : undefined,
-            "invoice_": entry["VENDOR SKU"] || "",
-            "text83": entry["CUSTOMER NAME"] && Object.keys(entry["CUSTOMER NAME"]).length ? entry["CUSTOMER NAME"] : undefined,
-            "text7": entry["PROVINCE"] && Object.keys(entry["PROVINCE"]).length ? entry["PROVINCE"] : undefined,
-            "numbers7": entry["QTY"]
+            "invoice_": entry["vendor_sku"] || "",
+            "text83": entry["customer_name"] && Object.keys(entry["customer_name"]).length ? entry["customer_name"] : undefined,
+            "text7": entry["province"] && Object.keys(entry["province"]).length ? entry["province"] : undefined,
+            "numbers7": entry["qty"]
         };
     } else if (mappedBoardId === CANADA_BOARD_ID) {
         columnValues = {
@@ -81,10 +80,10 @@ function createOrUpdateItem(entry) {
             "date__1": formattedMustShipDate ? {
                 "date": formattedMustShipDate
             } : undefined,
-            "invoice_": entry["VENDOR SKU"] || "",
-            "text2": entry["CUSTOMER NAME"] && Object.keys(entry["CUSTOMER NAME"]).length ? entry["CUSTOMER NAME"] : undefined,
-            "text6": entry["PROVINCE"] && Object.keys(entry["PROVINCE"]).length ? entry["PROVINCE"] : undefined,
-            "numbers": entry["QTY"]
+            "invoice_": entry["vendor_sku"] || "",
+            "text2": entry["customer_name"] && Object.keys(entry["customer_name"]).length ? entry["customer_name"] : undefined,
+            "text6": entry["province"] && Object.keys(entry["province"]).length ? entry["province"] : undefined,
+            "numbers": entry["qty"]
         };
     }
 
@@ -98,7 +97,7 @@ function createOrUpdateItem(entry) {
     const variables = {
         boardId: String(mappedBoardId),
         groupId: String(mappedBoardId === USA_BOARD_ID ? USA_GROUP_ID : CANADA_GROUP_ID),
-        itemName: entry["PO NUMBER"],
+        itemName: entry["po_number"],
         columnValues: JSON.stringify(columnValues)
     };
 
@@ -107,7 +106,6 @@ function createOrUpdateItem(entry) {
     }).then(res => {
         if (res.data && res.data.create_item) {
             console.log('Item Created or Updated:', res.data.create_item);
-            console.log("Item created or updated successfully");
         } else {
             console.log('No data returned or unexpected response structure:', res);
             console.log('Variables:', variables);
@@ -135,15 +133,17 @@ function mapBoardId(profile, merchant) {
     return boardId;
 }
 
-function mapCustomerLabel(originalCustomer) {
+function mapCustomerLabel(originalCustomer, profile) {
     const customerMap = {
-        "The Home Depot Canada": "HomeDepotCanada-Canada-CAD",
+        "The Home Depot Canada": profile == 1 ? "HomeDepotCanada-Canada-CAD" : "HomeDepotCanada-USA",
         "RONA": "Rona",
         "Lowes-Canada": "Lowes-Canada",
         "Reno-Depot": "RenoDepot",
         "Lowe's": "Lowes-USA",
         "Home Depot Canada": "HomeDepotCanada-USA",
-        "Home Depot USA": "HomeDepot-USA"
+        "The Home Depot Inc": "HomeDepot-USA"
     };
     return customerMap[originalCustomer] || originalCustomer;
 }
+
+main();

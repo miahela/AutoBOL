@@ -51,14 +51,22 @@ async function parseProvince(manager) {
     if (addressText) {
         const lines = addressText.split('\n');
         if (lines.length >= 3) {
-            const stateLine = lines[2];
-            const stateCodeMatch = stateLine.match(/,\s*([A-Z]{2})\s/);
+            let stateLine = lines[2];
+            let stateCodeMatch = stateLine.match(/,\s*([A-Z]{2})\s/);
             if (stateCodeMatch) {
-                const stateCode = stateCodeMatch[1];
+                let stateCode = stateCodeMatch[1];
                 console.log('State Code:', stateCode);
                 return stateCode;
             } else {
-                console.log('State Code not found in the expected format');
+                stateLine = lines[3];
+                stateCodeMatch = stateLine.match(/,\s*([A-Z]{2})\s/);
+                if (stateCodeMatch) {
+                    let stateCode = stateCodeMatch[1];
+                    console.log('State Code:', stateCode);
+                    return stateCode;
+                } else {
+                    console.log('State code not found');
+                }
             }
         } else {
             console.log('Address format is not as expected');
@@ -83,7 +91,9 @@ async function getOrdersData(manager, profile) {
     for (let i = 0; i < merchantRows.length; i++) {
         merchantRows = await getTableElements(manager);
         let merchantRow = merchantRows[i];
-        await merchantRow.click();
+        // await merchantRow.click();
+        let tdElement = await merchantRow.findElement(By.css("td.characterdata.shipmentInformationColumn"));
+        await tdElement.click(); // Click on the <td> element
         let item = await manager.getText(By.xpath("//tr[contains(@id, '.poNumber')]/td[contains(@id, '.poNumber')][2]"));
         let customer = await manager.getText(By.xpath("//tr[contains(@id, '.merchantName')]/td[contains(@id, '.merchantName')][2]"));
         let poDate = await manager.getText(By.xpath("//tr[contains(@id, '.orderDate')]/td[contains(@id, '.orderDate')][2]"));
@@ -104,7 +114,7 @@ async function getOrdersData(manager, profile) {
             'CUSTOMER NAME': customerName,
             'PROFILE': profile
         };
-        // await saveOrderToDatabase(orderObject);
+        await saveOrderToDatabase(orderObject);
         orders.push(orderObject);
         manager.goBack();
         totalOrders++;

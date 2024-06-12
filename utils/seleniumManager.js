@@ -10,6 +10,7 @@ const {
     format,
     transports
 } = require('winston');
+const chrome = require('selenium-webdriver/chrome');
 
 const logger = createLogger({
     level: 'info',
@@ -33,7 +34,13 @@ const logger = createLogger({
 
 class SeleniumManager {
     constructor() {
-        this.driver = new Builder().forBrowser('chrome').build();
+        const chromeOptions = new chrome.Options();
+        chromeOptions.addArguments('--headless', '--disable-gpu', '--window-size=1920,1080');
+
+        this.driver = new Builder()
+            .forBrowser('chrome')
+            .setChromeOptions(chromeOptions)
+            .build();
     }
 
     async open(url) {
