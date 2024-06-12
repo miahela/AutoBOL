@@ -36,6 +36,8 @@ class SeleniumManager {
     constructor() {
         const chromeOptions = new chrome.Options();
         chromeOptions.addArguments('--headless', '--disable-gpu', '--window-size=1920,1080');
+        chromeOptions.addArguments("--no-sandbox");
+        chromeOptions.addArguments("--disable-dev-shm-usage");
 
         this.driver = new Builder()
             .forBrowser('chrome')
