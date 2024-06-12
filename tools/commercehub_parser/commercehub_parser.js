@@ -62,7 +62,6 @@ async function parseProvince(manager) {
                 stateCodeMatch = stateLine.match(/,\s*([A-Z]{2})\s/);
                 if (stateCodeMatch) {
                     let stateCode = stateCodeMatch[1];
-                    console.log('State Code:', stateCode);
                     return stateCode;
                 } else {
                     console.log('State code not found');
@@ -82,7 +81,6 @@ async function getCustomerName(manager) {
     }
     const lines = content.split('\n');
     const customerName = lines[0].trim();
-    console.log('Customer Name:', customerName);
     return customerName || '';
 }
 
