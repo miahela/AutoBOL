@@ -1,19 +1,18 @@
 require('dotenv').config();
 const axios = require('axios');
-const Imap = require('imap');
-const {
-    simpleParser
-} = require('mailparser');
-
 const imaps = require('imap-simple');
+const _ = require('lodash');
+var Imap = require('node-imap');
 
-const username = process.env.EMAIL_USERNAME;
-const tenantID = process.env.EMAIL_TENANT_ID;
-const clientID = process.env.EMAIL_CLIENT_ID;
-const clientSecret = process.env.EMAIL_CLIENT_SECRET;
-const emailPort = process.env.EMAIL_PORT;
-const emailHost = process.env.EMAIL_HOST;
-const emailTls = process.env.EMAIL_TLS;
+const {
+    EMAIL_USERNAME: username,
+    EMAIL_TENANT_ID: tenantID,
+    EMAIL_CLIENT_ID: clientID,
+    EMAIL_CLIENT_SECRET: clientSecret,
+    EMAIL_PORT: emailPort,
+    EMAIL_HOST: emailHost,
+    EMAIL_TLS: emailTls
+} = process.env;
 
 const tokenUrl = `https://login.microsoftonline.com/${tenantID}/oauth2/v2.0/token`;
 
@@ -37,7 +36,6 @@ async function getAccessToken() {
     }
 }
 
-// od ovde nadolu ne raboti mozis da izbrisis od pocetok da go pocnis a ona gore e fine,
 
 async function readEmails() {
     try {
@@ -46,75 +44,119 @@ async function readEmails() {
             console.error("Failed to retrieve access token");
             return;
         }
+        console.log('Access Token:', accessToken);
 
-        const config = {
-            imap: {
-                user: 'poinbox@streamlinebath.com', // Replace with your actual email
-                password: accessToken,
-                host: 'outlook.office365.com',
-                port: 993,
-                tls: true,
-                authTimeout: 3000,
-                tlsOptions: {
-                    rejectUnauthorized: false
-                }
+        const auth2 = btoa('user=' + username + '^Aauth=Bearer ' + accessToken + '^A^A');
+
+        var imap = new Imap({
+            xoauth2: auth2,
+            host: 'outlook.office365.com',
+            port: 993,
+            tls: true,
+            debug: console.log,
+            authTimeout: 25000,
+            connTimeout: 30000,
+            tlsOptions: {
+                rejectUnauthorized: false,
+                servername: 'outlook.office365.com'
             }
-        };
+        });
 
-        const connection = await imaps.connect(config);
-        console.log('Connected to IMAP server');
-        await connection.end();
+        // const xoauth2Token = Buffer.from(`user=${username}\x01auth=Bearer ${accessToken}\x01\x01`).toString('base64');
+
+        // const config = {
+        //     imap: {
+        //         user: username,
+        //         xoauth2: xoauth2Token,
+        //         host: emailHost,
+        //         port: parseInt(emailPort, 10),
+        //         tls: emailTls === 'true',
+        //         authTimeout: 10000, // Increase the timeout to 10 seconds
+        //         tlsOptions: {
+        //             rejectUnauthorized: false
+        //         }
+        //     }
+        // };
+
+        function openInbox(cb) {
+            imap.openBox('INBOX', true, cb);
+        }
+
+        imap.once('ready', function () {
+            openInbox(function (err, box) {
+                if (err) throw err;
+                var f = imap.seq.fetch('1:3', {
+                    bodies: 'HEADER.FIELDS (FROM TO SUBJECT DATE)',
+                    struct: true
+                });
+                f.on('message', function (msg, seqno) {
+                    console.log('Message #%d', seqno);
+                    var prefix = '(#' + seqno + ') ';
+                    msg.on('body', function (stream, info) {
+                        var buffer = '';
+                        stream.on('data', function (chunk) {
+                            buffer += chunk.toString('utf8');
+                        });
+                        stream.once('end', function () {
+                            console.log(
+                                prefix + 'Parsed header: %s',
+                                inspect(Imap.parseHeader(buffer))
+                            );
+                        });
+                    });
+                    msg.once('attributes', function (attrs) {
+                        console.log(prefix + 'Attributes: %s', inspect(attrs, false, 8));
+                    });
+                    msg.once('end', function () {
+                        console.log(prefix + 'Finished');
+                    });
+                });
+                f.once('error', function (err) {
+                    console.log('Fetch error: ' + err);
+                });
+                f.once('end', function () {
+                    console.log('Done fetching all messages!');
+                    imap.end();
+                });
+            });
+        });
+
+        imap.once('error', function (err) {
+            console.log(err);
+        });
+
+        imap.once('end', function () {
+            console.log('Connection ended');
+        });
+
+        imap.connect();
+
+        // console.log('IMAP Config:', config);
+        // console.log('Connecting to IMAP server...');
+        // const connection = await imaps.connect(config);
+        // console.log('Connected to IMAP server');
+
+        // await connection.openBox('INBOX');
+
+        // const searchCriteria = ['ALL'];
+        // const fetchOptions = {
+        //     bodies: ['HEADER.FIELDS (FROM TO SUBJECT DATE)', 'TEXT'],
+        //     markSeen: false
+        // };
+
+        // const messages = await connection.search(searchCriteria, fetchOptions);
+        // messages.forEach(message => {
+        //     const all = _.find(message.parts, {
+        //         "which": "TEXT"
+        //     });
+        //     const html = (Buffer.from(all.body, 'base64').toString('utf8'));
+        //     console.log(html);
+        // });
+
+        // await connection.end();
     } catch (error) {
         console.error('IMAP Connection Error:', error);
     }
 }
 
 readEmails();
-
-// getAccessToken().then(accessToken => {
-//     const xoauth2Token = Buffer.from(`user=${username}\x01auth=Bearer ${accessToken}\x01\x01`).toString('base64');
-
-//     const imap = new Imap({
-//         user: username,
-//         password: xoauth2Token,
-//         host: emailHost,
-//         port: emailPort,
-//         tls: emailTls,
-//         tlsOptions: {
-//             rejectUnauthorized: false
-//         },
-//         authTimeout: 10000
-//     });
-
-//     imap.once('ready', function () {
-//         console.log("IMAP connection ready.");
-//         openInbox(function (err, box) {
-//             if (err) throw err;
-//         });
-//     });
-
-//     imap.once('error', function (err) {
-//         console.error('IMAP Connection Error:', err);
-//     });
-
-//     imap.once('end', function () {
-//         console.log('Connection ended');
-//     });
-
-//     imap.once('authenticated', function () {
-//         console.log('IMAP authenticated');
-//     });
-
-//     imap.once('close', function (hadError) {
-//         console.log('IMAP connection closed, hadError=', hadError);
-//     });
-
-//     function openInbox(cb) {
-//         imap.openBox('INBOX', true, cb);
-//     }
-
-//     console.log('Connecting to IMAP server...');
-//     imap.connect();
-// }).catch(error => {
-//     console.error('Failed to get access token:', error.message);
-// });

@@ -46,8 +46,7 @@ async function setPageSize(manager) {
     }
 }
 
-async function parseProvince(manager) {
-    const addressText = await manager.getText(By.xpath("(//div[@class='fw_widget_windowtag_body'])[4]"));
+async function parseProvince(addressText) {
     if (addressText) {
         const lines = addressText.split('\n');
         if (lines.length >= 3) {
@@ -71,6 +70,31 @@ async function parseProvince(manager) {
             console.log('Address format is not as expected');
         }
     }
+}
+
+function parseFullAddress(addressText) {
+    if (!addressText) {
+        return '';
+    }
+
+    const lines = addressText.split('\n').filter(line => line.trim() !== '');
+    let address = {};
+
+    address.name = lines[0]?.trim() || '';
+    address.street = lines[1]?.trim() || '';
+    address.unit = lines[2]?.trim() || '';
+
+    const cityStateZip = lines[3]?.split(',') || [];
+    address.city = cityStateZip[0]?.trim() || '';
+    const stateZip = cityStateZip[1]?.trim().split(' ') || [];
+    address.state = stateZip[0]?.trim() || '';
+    address.zip = stateZip[1]?.trim() || '';
+
+    address.country = lines[4]?.trim() || '';
+    address.phone = lines.find(line => line.startsWith('Daytime Phone:'))?.replace('Daytime Phone: ', '').trim() || '';
+    address.email = lines.find(line => line.startsWith('Email:'))?.replace('Email: ', '').trim() || '';
+
+    return `${address.street}, ${address.unit}, ${address.city}, ${address.state}`;
 }
 
 
@@ -97,7 +121,9 @@ async function getOrdersData(manager, profile) {
         let poDate = await manager.getText(By.xpath("//tr[contains(@id, '.orderDate')]/td[contains(@id, '.orderDate')][2]"));
         let mustShipDate = await manager.getText(By.xpath("//tr/td[contains(@id, '.expectedShipDate')]"));
         let vendorSku = await manager.getText(By.xpath("//tr/td[contains(@id, '.vendorSku')]"));
-        let province = await parseProvince(manager);
+        const addressText = await manager.getText(By.xpath("(//div[@class='fw_widget_windowtag_body'])[4]"));
+        let fullAddress = await parseFullAddress(addressText);
+        let province = await parseProvince(addressText);
         let customerName = (await getCustomerName(manager)).toUpperCase();
         let qty = await manager.getText(By.xpath("//tr/td[contains(@id, '.qty')]"));
         const orderObject = {
@@ -110,10 +136,10 @@ async function getOrdersData(manager, profile) {
             'VENDOR SKU': vendorSku,
             'PROVINCE': province,
             'CUSTOMER NAME': customerName,
-            'PROFILE': profile
+            'PROFILE': profile,
+            'ADDRESS': fullAddress
         };
         await saveOrderToDatabase(orderObject);
-        orders.push(orderObject);
         manager.goBack();
         totalOrders++;
         if (merchantRows.length - 1 === i) {
@@ -161,7 +187,6 @@ async function operateMerchants(manager, state) {
         await operateMerchants(manager, "2");
     } finally {
         console.log('Total Orders:', totalOrders);
-        writeToJsonFile(orders, './data/orders.json');
         await manager.close();
     }
 })();

@@ -2,7 +2,8 @@ require('dotenv').config();
 const mondaySdk = require("monday-sdk-js");
 const monday = mondaySdk();
 const {
-    fetchAllOrders
+    fetchAllOrders,
+    updateOrderStatus
 } = require('../../utils/dbOperations');
 const {
     formatDate
@@ -31,7 +32,7 @@ function processOrders(entries) {
     });
 }
 
-function createOrUpdateItem(entry) {
+async function createOrUpdateItem(entry) {
     const query = `mutation($boardId: ID!, $groupId: String!, $itemName: String!, $columnValues: JSON!) {
         create_item(board_id: $boardId, group_id: $groupId, item_name: $itemName, column_values: $columnValues) {
             id
@@ -101,18 +102,21 @@ function createOrUpdateItem(entry) {
         columnValues: JSON.stringify(columnValues)
     };
 
-    monday.api(query, {
-        variables
-    }).then(res => {
+    try {
+        const res = await monday.api(query, {
+            variables
+        });
+
         if (res.data && res.data.create_item) {
             console.log('Item Created or Updated:', res.data.create_item);
+            await updateOrderStatus(entry["po_number"]);
         } else {
             console.log('No data returned or unexpected response structure:', res);
             console.log('Variables:', variables);
         }
-    }).catch(err => {
+    } catch (err) {
         console.error('Error creating or updating item:', err);
-    });
+    }
 }
 
 function mapBoardId(profile, merchant) {
