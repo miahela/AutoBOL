@@ -97,7 +97,7 @@ async function listInboxAsync(nextLink) {
         if (moreAvailable && shouldFetchMore) {
             await listInboxAsync(messagePage['@odata.nextLink']);
         } else {
-            console.log(moreAvailable ? "No more messages" : "Only old messages available");
+            console.log(!moreAvailable ? "No more messages" : "Only old messages available");
         }
     } catch (err) {
         console.log(`Error getting user's inbox: ${err}`);
