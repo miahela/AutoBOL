@@ -32,7 +32,7 @@ async function saveOrderToDatabase(orderObject) {
             console.log('Order already exists in the database:', orderObject['PO NUMBER']);
         } else {
             await pool.query(insertQuery, values);
-            console.log('Order saved to database:', orderObject);
+            console.log('Order saved to database');
         }
     } catch (err) {
         console.error('Error saving order to database:', err);
@@ -62,7 +62,7 @@ async function fetchOrderByPONumber(poNumber) {
         const res = await pool.query(query, [poNumber]);
         return res.rows[0];
     } catch (err) {
-        console.error('Error fetching order from database:', err);
+        // console.error('Error fetching order from database:', err);
         return null;
     }
 }

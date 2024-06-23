@@ -73,17 +73,21 @@ module.exports.getUserAsync = getUserAsync;
 // </GetUserSnippet>
 
 // <GetInboxSnippet>
-async function getInboxAsync() {
+async function getInboxAsync(nextPage) {
     // Ensure client isn't undefined
     if (!_userClient) {
         throw new Error('Graph has not been initialized for user auth');
     }
+    if (!nextPage) {
+        nextPage = '/me/mailFolders/inbox/messages';
+        return _userClient.api(nextPage)
+            .select(['from', 'isRead', 'receivedDateTime', 'subject', 'body'])
+            .top(25)
+            .orderby('receivedDateTime DESC')
+            .get();
+    }
+    return _userClient.api(nextPage).get();
 
-    return _userClient.api('/me/mailFolders/inbox/messages')
-        .select(['from', 'isRead', 'receivedDateTime', 'subject', 'body'])
-        .top(25)
-        .orderby('receivedDateTime DESC')
-        .get();
 }
 
 module.exports.getInboxAsync = getInboxAsync;
