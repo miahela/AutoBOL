@@ -108,7 +108,7 @@ async function createOrUpdateItem(entry) {
         });
 
         if (res.data && res.data.create_item) {
-            console.log('Item Created or Updated:', res.data.create_item);
+            console.log('Item Created or Updated');
             await updateOrderStatus(entry["po_number"]);
         } else {
             console.log('No data returned or unexpected response structure:', res);
