@@ -92,8 +92,25 @@ function initializeGraph(settings) {
 }
 
 async function main() {
-    initializeGraph(graphQLSettings);
-    await listInboxAsync();
+    try {
+        // Your main logic here
+        console.log("Starting the process...");
+        await listInboxAsync();
+        console.log("Process completed.");
+    } catch (error) {
+        console.error("An error occurred:", error);
+    }
 }
 
-main();
+// Start the initial execution
+initializeGraph(graphQLSettings); // Ensure this only needs to run once or handles re-initialization gracefully
+main().then(() => {
+    console.log("Scheduled execution will continue every 30 minutes.");
+});
+
+// Schedule further executions
+setInterval(() => {
+    main().catch(error => {
+        console.error("Failed to execute main function:", error);
+    });
+}, 180000); // 30 minutes expressed in milliseconds
